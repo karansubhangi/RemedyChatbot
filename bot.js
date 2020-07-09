@@ -1,183 +1,167 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-const { ActivityHandler, MessageFactory } = require('botbuilder');
-var HttpClient = require('node-rest-client').Client;
-var httpClient = new HttpClient();
-var request = require('request');
-var _=require("underscore");
-class EchoBot extends ActivityHandler {
+const {
+    TurnContext,
+    MessageFactory,
+    TeamsInfo,
+    TeamsActivityHandler,
+    CardFactory,
+    
+    ActionTypes} = require('botbuilder');
+
    
-    constructor() {
+    var _=require('underscore');
+ 
+const TextEncoder = require('util').TextEncoder;
+
+
+
+var updateIncident=require('./graphClient.js')
+// Welcomed User property name
+const WELCOMED_USER = 'welcomedUserProperty';
+class TeamsConversationBot extends TeamsActivityHandler {
+    constructor(userState) {
         super();
-        var args = {
-            data: { username: 'subhangi.karan',
-            password: 'remedy'},
-            headers: { "Content-Type": "application/x-www-form-urlencoded" }
-          };
+
+           // Creates a new user property accessor.
+    // See https://aka.ms/about-bot-state-accessors to learn more about the bot state and state accessors.
+    this.welcomedUserProperty = userState.createProperty(WELCOMED_USER);
+
+   
+    this.userState = userState;
+
+   
+
+    
         // See https://aka.ms/about-bot-activity-message to learn more about the message and other activity types.
         this.onMessage(async (context, next) => {
-            var replyText = 'no input';
-            var INCSuccess= 'N';
-            //console.log(replyText);
-            
-            if(context.activity.text == 'hey'){
-                replyText = 'Hey wassup';
-            }else if(context.activity.text=='update'){
-                replyText='Enter the INC number'                
 
-            }else if(context.activity.text.startsWith('INC')){
-               const inc=context.activity.text;
-                //MS Graph API Code
-                request({
-                    url: 'https://login.microsoftonline.com/ac26cf21-c02e-433a-8cca-237e1afccbd1/oauth2/v2.0/token',
-                    method: 'POST',
-                    auth: {
-                      user: '04812a6a-a5cf-4004-94fe-22a4a11c6134',
-                      pass: 'Y0ufVcvSAc4s.8ojYQb2_Ba1R80~2V.C3Z'
-                    },
-                    form: {
-                      'grant_type': 'client_credentials',
-                      'scope':'https://graph.microsoft.com/.default'
-                    }
-                  }, function(err, res) {
-                    var json = JSON.parse(res.body);
-                    console.log("Access Token:", res.statusCode);
-                    var args_update = { 
-                      headers: { 'Authorization' : "Bearer "+json.access_token,
-                      'Content-Type': "application/json"
-                      }
-                    };
-                    httpClient.get("https://graph.microsoft.com/v1.0/users", args_update, function (data, response) {
-                    
-                      var jsonObject=JSON.parse(data);
-                      var id="";
-                      _.map( jsonObject, function(content) {
-                          _.map(content,function(data){
-                             if(data.mail === "rasmiawsact02@gmail.com")
-                                id=  data.id;      
-                             })
-                        })
-
-                        var teamId="";
-                        httpClient.get("https://graph.microsoft.com/v1.0/users/"+id+"/joinedTeams", args_update, function (data1, response1) {
-                          var jsonObject1=JSON.parse(data1);
-                          _.map( jsonObject1, function(content) {
-                              _.map(content,function(data){
-                                 if(data.displayName === "CPA_POC")
-                                 teamId=  data.id;      
-                                 })
-                            })
-                            console.log("team Id::"+teamId)
-                       
-                     var channelId="";
-                     httpClient.get("https://graph.microsoft.com/v1.0/teams/" + teamId + "/channels", args_update, function (data2, response2) {
-                      var jsonObject2=JSON.parse(data2);
-                      _.map( jsonObject2, function(content) {
-                          _.map(content,function(data){
-                             if(data.displayName === "Incident_Query")
-                             channelId=  data.id;      
-                             })
-                        })
-                        console.log("channel Id::"+channelId)
-                  var displayName="";
-                  
-                  httpClient.get("https://graph.microsoft.com/beta/teams/" + teamId + "/channels/" + channelId + "/messages", args_update, function (data3, response3) {
-                          var contents="";
-                          var jsonObject3=JSON.parse(data3);
-                          _.map( jsonObject3.value, function(content) {
-                              _.map(content.from,function(data){  
-                                if(JSON.stringify(data) != 'null')            
-                                 contents=contents.concat(JSON.stringify(data.displayName));
-                                 })
-                                 _.map(content.body,function(data1){ 
-                                  var jsonObject4=content.body;
-                                  if(data1==="text")  { 
-                                  contents=contents.concat(': ',JSON.stringify(jsonObject4.content)+"\n");
-                  
-                                  }
-                               //  }
-                                })
-                            })
-                                // Remedy Code
+              
        
-                httpClient.post("http://vtrvitstp-03:8008/api/jwt/login", args, function (data, response) {
-                    console.log("statuscode :"+response.statusCode);
-                var args_update = {
-                    data: { "values": {
-                    "z1D_Details": contents,
-                    "z1D_WorklogDetails": "testing update for poc",
-                    "z1D Action": "MODIFY",
-                    "z1D_View_Access": "Internal",
-                    "z1D_Secure_Log": "Yes",
-                    "z1D_Activity_Type": "Incident Task/Action",
-                    "Detailed Decription": "Updated description",
-                    "Resolution": "User Request has been serviced",
-                    "Urgency" : "3-Medium"
-                    }},
-                    headers: { 'Authorization' : "AR-JWT "+data,
-                    'Content-Type': "application/json"
-                    }
-                };
-                         //get incident entry Id
-                         httpClient.get("http://VTRVITSTP-03:8008/api/arsys/v1/entry/HPD:IncidentInterface?q='Incident Number'=\""+inc+"\"", args_update, function (data1, res1) {
-                            console.log("get  statuscode :"+res1.statusCode);   
-                           // console.log("data of entry id :"+data1);
-                            var jsonObject=JSON.parse(JSON.stringify(data1)); 
-                            var urlOfInc;
-                            _.map( jsonObject, function(content) {
-                              _.map(content,function(data){
-                                _.map(data._links,function(data1){
-                                  _.map(data1,function(data2){
-                                    urlOfInc=JSON.stringify(data2.href);
-                                    console.log("url:"+JSON.stringify(data2.href));
-                                })
-                              })
-                            })
-                            })
-                            var url=JSON.parse(urlOfInc);
-                httpClient.put(url, args_update, function (data, response) {
-                console.log("final statuscode :"+response.statusCode);            
-                
-                if(response.statusCode == '204'){
-                    INCSuccess='Y';
+           
+            const didBotWelcomedUser = await this.welcomedUserProperty.get(context, false);
+            const modifiedText = TurnContext.removeMentionText(context.activity, context.activity.recipient.id);
+               // (and only the first time) a user initiates a personal chat with your bot.
+               if (didBotWelcomedUser === false) {
+                // The channel should send the user name in the 'From' object
+                const userName = context.activity.from.name;
+                await context.sendActivity('You are seeing this message because this was your first message ever sent to this bot.');
+                await context.sendActivity(`It is a good practice to welcome the user and provide personal greeting. For example, welcome ${ userName }.`);
+
+                // Set the flag indicating the bot handled the user's first message.
+                await this.welcomedUserProperty.set(context, true);
+            } else {
+                // This example uses an exact match on user's input utterance.
+                // Consider using LUIS or QnA for Natural Language Processing.
+                const text = context.activity.text.toLowerCase();
+                switch (modifiedText) {
+                case 'hello':
+                case 'hi':
+                    await context.sendActivity(`You said "${ teamDetails.id }"`);
+                    break;
+                case 'update1':
+                    await this.testTeams(context);
+                    break;
+                case 'help':
+                    await this.sendIntroCard(context);
+                    break;
+                default:
+                    await context.sendActivity(`This is a simple Welcome Bot sample. You can say 'intro' to
+                                                    see the introduction card. If you are running this bot in the Bot
+                                                    Framework Emulator, press the 'Start Over' button to simulate user joining a bot or a channel`);
                 }
-               
-                });
-    
-                });
-                           
-                      }); 
-                    });  
-                   });
-                   });
-                  
-                  });
-                });
-
-
-         replyText=`${ inc } Updated Successfully`;
-            
-        }else{            
-            replyText = `Echo: ${ context.activity.text }`;
-            }
-            await context.sendActivity(MessageFactory.text(replyText, replyText));
-            // By calling next() you ensure that the next BotHandler is run.
+           
+      
             await next();
-        });
+        }});
 
-        this.onMembersAdded(async (context, next) => {
-            const membersAdded = context.activity.membersAdded;
-            const welcomeText = 'Hello and welcome!';
-            for (let cnt = 0; cnt < membersAdded.length; ++cnt) {
-                if (membersAdded[cnt].id !== context.activity.recipient.id) {
-                    await context.sendActivity(MessageFactory.text(welcomeText, welcomeText));
-                }
-            }
-            // By calling next() you ensure that the next BotHandler is run.
-            await next();
-        });
+        // Sends welcome messages to conversation members when they join the conversation.
+// Messages are only sent to conversation members who aren't the bot.
+this.onMembersAdded(async (context, next) => {
+    // Iterate over all new members added to the conversation
+    for (const idx in context.activity.membersAdded) {
+        // Greet anyone that was not the target (recipient) of this message.
+        // Since the bot is the recipient for events from the channel,
+        // context.activity.membersAdded === context.activity.recipient.Id indicates the
+        // bot was added to the conversation, and the opposite indicates this is a user.
+        if (context.activity.membersAdded[idx].id !== context.activity.recipient.id) {
+            await context.sendActivity('Welcome to the \'Welcome User\' Bot. This bot will introduce you to welcoming and greeting users.');
+            await context.sendActivity("You are seeing this message because the bot received at least one 'ConversationUpdate' " +
+                'event, indicating you (and possibly others) joined the conversation. If you are using the emulator, ' +
+                'pressing the \'Start Over\' button to trigger this event again. The specifics of the \'ConversationUpdate\' ' +
+                'event depends on the channel. You can read more information at https://aka.ms/about-botframework-welcome-user');
+            await context.sendActivity('It is a good pattern to use this event to send general greeting to user, explaining what your bot can do. ' +
+                'In this example, the bot handles \'hello\', \'hi\', \'help\' and \'intro\'. ' +
+                'Try it now, type \'hi\'');
+        }
     }
-}
 
-module.exports.EchoBot = EchoBot;
+    // By calling next() you ensure that the next BotHandler is run.
+    await next();
+});
+      
+    }
+
+    async run(context) {
+        await super.run(context);
+    
+        // Save state changes
+        await this.userState.saveChanges(context);
+    }
+
+    async sendIntroCard(context) {
+        const card = CardFactory.heroCard(
+            'Welcome to Bot Framework!',
+            'Welcome to Welcome Users bot sample! This Introduction card is a great way to introduce your Bot to the user and suggest some things to get them started. We use this opportunity to recommend a few next steps for learning more creating and deploying bots.',
+            ['https://aka.ms/bf-welcome-card-image'],
+            [
+                {
+                    type: ActionTypes.OpenUrl,
+                    title: 'Get an overview',
+                    value: 'https://docs.microsoft.com/en-us/azure/bot-service/?view=azure-bot-service-4.0'
+                },
+                {
+                    type: ActionTypes.OpenUrl,
+                    title: 'Create Incident',
+                    value: 'https://stackoverflow.com/questions/tagged/botframework'
+                },
+                {
+                    type: ActionTypes.OpenUrl,
+                    title: 'Update Incident',
+                    value: 'https://docs.microsoft.com/en-us/azure/bot-service/bot-builder-howto-deploy-azure?view=azure-bot-service-4.0'
+                }
+            ]
+        );
+    
+        await context.sendActivity({ attachments: [card] });
+    }
+
+
+    async testTeams(context) {
+        
+        const activity = context.activity;
+
+        const connector = context.adapter.createConnectorClient(activity.serviceUrl);
+
+        const response = await connector.conversations.getConversationMembers(activity.conversation.id);
+
+        let emailad='';
+
+        response.forEach(element => {
+            
+            if(activity.from.id===element.id)
+            {
+                emailad=element.email;
+            }
+        });
+        const teamDetails = await TeamsInfo.getTeamDetails(context);
+        
+      let messageDetails= await  updateIncident(emailad,context.activity.conversation.id,teamDetails.name);
+     
+      await  context.sendActivity(`Your message "${ messageDetails}"`);
+    }
+
+    
+}
+module.exports.TeamsConversationBot = TeamsConversationBot;
